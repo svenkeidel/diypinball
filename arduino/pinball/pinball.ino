@@ -1,10 +1,10 @@
 /*15ms max 1 per sec*/
 
 
-const int SIGPINL = 0; //shift
-const int BUTTONPINL = 2;
-const int SIGPINR = 1; //shift
-const int BUTTONPINR = 3;
+const int SIGPINL = 0; //shift out
+const int BUTTONPINL = 0; //shift in
+const int SIGPINR = 1; //shift out
+const int BUTTONPINR = 1;//shift in
 
 int buttonStateL = 0;
 int buttonStateR = 0;
@@ -13,13 +13,19 @@ const int SLING_IDLE = 0;
 const int SLING_TRIGGERED_HIGH = 1;
 const int SLING_TRIGGERED_LOW = 2;
 
-const int PIN_LATCH = 8;
-const int PIN_CLOCK = 12;
-const int PIN_DATA = 11;
+const int PIN_LATCH_IN = 2;
+const int PIN_CLOCK_IN = 3;
+const int PIN_DATA_IN  = 4;
+const int PIN_DISABLE_IN = 5;
+
+const int PIN_LATCH_OUT = 6;
+const int PIN_CLOCK_OUT = 7;
+const int PIN_DATA_OUT  = 8;
+const int PIN_DISABLE_OUT = 9;
 
 const int numSlings = 3;
-int slingTrigger[numSlings] = {4, 5, 6};
-int slingFire[numSlings]    = {2, 3, 4}; //shift
+int slingTrigger[numSlings] = {2, 3, 4}; //shift in
+int slingFire[numSlings]    = {2, 3, 4}; //shift out
 int slingState[numSlings];
 unsigned long lastTriggered[numSlings];
 
@@ -27,7 +33,7 @@ void initSling(){
   for(int i = 0; i < numSlings; i++) {
     slingState[i] = SLING_IDLE;
     lastTriggered[i] = 0;
-    pinMode(slingTrigger[i], INPUT);
+    //pinMode(slingTrigger[i], INPUT);
   }
 }
 
@@ -40,7 +46,7 @@ void initSling(){
  */
 void slingShot(int n, int interval, int highLength) {
   unsigned long currentTime = millis();
-  if(slingState[n] == SLING_IDLE && digitalRead(slingTrigger[n])) {
+  if(slingState[n] == SLING_IDLE && shiftRead(slingTrigger[n])) {
     slingState[n] = SLING_TRIGGERED_HIGH;
     lastTriggered[n] = currentTime;
     shiftWrite(slingFire[n], HIGH);
@@ -62,12 +68,14 @@ const int PLUNGE_HIGH = 4;
 
 int plungerState = PLUNGE_IDLE;
 unsigned long plungerTimeStamp;
-int plungeTrigger = 7;
-int troughFire = 5; //shift
-int plungeFire = 6; //shift
+
+int plungeTrigger = 5; //shift in
+int troughFire = 5; //shift out
+int plungeFire = 6; //shift out
+
 void plunger(int drainSettleTime, int troughHighTime, int moveToLaneTime, int plungeHighTime) {
   unsigned long currentTime = millis();
-  if(plungerState == PLUNGE_IDLE && digitalRead(plungeTrigger)) {
+  if(plungerState == PLUNGE_IDLE && shiftRead(plungeTrigger)) {
     plungerState = PLUNGE_DRAINED;
     plungerTimeStamp = currentTime;
   } else if(plungerState == PLUNGE_DRAINED &&
@@ -94,25 +102,28 @@ void plunger(int drainSettleTime, int troughHighTime, int moveToLaneTime, int pl
 
 // the setup function runs once when you press reset or power the board
 void setup() {
-  pinMode(BUTTONPINL, INPUT);
-  pinMode(BUTTONPINR, INPUT);
-  
-  pinMode(PIN_LATCH,  OUTPUT);
-  pinMode(PIN_CLOCK,  OUTPUT);
-  pinMode(PIN_DATA,   OUTPUT);
+  pinMode(PIN_LATCH_IN, OUTPUT);
+  pinMode(PIN_CLOCK_IN, OUTPUT);
+  pinMode(PIN_DATA_IN,  INPUT);
+  pinMode(PIN_DISABLE_IN, OUTPUT);
+
+  pinMode(PIN_LATCH_OUT, OUTPUT);
+  pinMode(PIN_CLOCK_OUT, OUTPUT);
+  pinMode(PIN_DATA_OUT,  OUTPUT);
+  pinMode(PIN_DISABLE_OUT, OUTPUT);
   
   initSling();
   
-  pinMode(plungeTrigger, INPUT);
-  
   pinMode(LED_BUILTIN, OUTPUT);
+
+    Serial.begin(9600); 
 }
 
 
 // the loop function runs over and over again forever
 void loop() {
-  buttonStateL = digitalRead(BUTTONPINL);
-  buttonStateR = digitalRead(BUTTONPINR);
+  buttonStateL = shiftRead(BUTTONPINL);
+  buttonStateR = shiftRead(BUTTONPINR);
 
   slingShot(0, 400, 20);
   slingShot(1, 400, 20);
@@ -133,6 +144,11 @@ void loop() {
     shiftWrite(SIGPINR, LOW);
   }
 
+//  Serial.print("L: ");
+//  Serial.print(buttonStateL);
+//  Serial.print("; R: ");
+//  Serial.println(buttonStateR);
+
   bool ledLit = buttonStateL == HIGH || buttonStateR == HIGH || plungerState == PLUNGE_TROUGH_HIGH || plungerState == PLUNGE_HIGH;
   for(int i = 0; i < numSlings; i++)
     ledLit = ledLit || slingState[i] == SLING_TRIGGERED_HIGH;
@@ -143,6 +159,7 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
   }
   shiftCommit();
+  shiftReadSignals();
 }
 
 
@@ -152,8 +169,26 @@ void shiftWrite(int pin, int state) {
   bitWrite(shiftOutput, pin, state);
 }
 void shiftCommit(){
-  digitalWrite(PIN_LATCH, LOW);
-  shiftOut(PIN_DATA, PIN_CLOCK, MSBFIRST, shiftOutput);
-  digitalWrite(PIN_LATCH, HIGH);
+  digitalWrite(PIN_LATCH_OUT, LOW);
+  shiftOut(PIN_DATA_OUT, PIN_CLOCK_OUT, MSBFIRST, shiftOutput);
+  digitalWrite(PIN_LATCH_OUT, HIGH);
+}
+
+byte shiftInput = 0;
+
+bool shiftRead(int pin) {
+  return bitRead(shiftInput, pin);
+}
+void shiftReadSignals(){
+  digitalWrite(PIN_LATCH_IN, LOW);
+  delayMicroseconds(5);
+  digitalWrite(PIN_LATCH_IN, HIGH);
+  delayMicroseconds(5);
+  digitalWrite(PIN_CLOCK_IN, HIGH);
+  digitalWrite(PIN_DISABLE_IN, LOW);
+
+  shiftInput = shiftIn(PIN_DATA_IN, PIN_CLOCK_IN, MSBFIRST);
+
+  digitalWrite(PIN_DISABLE_IN, HIGH);
 }
 
