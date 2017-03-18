@@ -1,4 +1,4 @@
-update=08/03/2017 23:33:42
+update=10/03/2017 21:06:38
 version=1
 last_client=kicad
 [pcbnew]
@@ -39,16 +39,16 @@ LabSize=60
 version=1
 LibDir=
 [eeschema/libraries]
-LibName1=E:/Repositories/kicad-library/Virtlink-74xx
-LibName2=E:/Repositories/kicad-library/Virtlink-misc
+LibName1=E:/Repositories/kicad-library/Virtlink-misc
+LibName2=E:/Repositories/kicad-library/Virtlink-74xx
 LibName3=power
 LibName4=device
 LibName5=transistors
 LibName6=conn
 LibName7=linear
 LibName8=regul
-LibName9=74xx
-LibName10=cmos4000
+LibName9=cmos4000
+LibName10=74xx
 LibName11=adc-dac
 LibName12=memory
 LibName13=xilinx
