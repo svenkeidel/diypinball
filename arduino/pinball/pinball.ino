@@ -29,6 +29,8 @@ int slingFire[numSlings]    = {2, 3, 4, 6}; // shift out
 int slingState[numSlings];
 unsigned long lastTriggered[numSlings];
 
+int score = 0;
+
 void initSling(){
   for(int i = 0; i < numSlings; i++) {
     slingState[i] = SLING_IDLE;
@@ -48,6 +50,16 @@ void slingShot(int n, int interval, int highLength) {
   unsigned long currentTime = millis();
   if(slingState[n] == SLING_IDLE && shiftRead(slingTrigger[n])) {
     slingState[n] = SLING_TRIGGERED_HIGH;
+    if(n == 0) {
+      // If pop bumper
+      score += 10;
+    }  else if(n == 3) {
+      // If scoop
+      score += 50;
+    } else {
+      // If sling shots
+      score += 1;
+    }
     lastTriggered[n] = currentTime;
     shiftWrite(slingFire[n], HIGH);
   } else if(slingState[n] == SLING_TRIGGERED_HIGH &&
@@ -77,6 +89,7 @@ void plunger(int drainSettleTime, int troughHighTime, int moveToLaneTime, int pl
   unsigned long currentTime = millis();
   if(plungerState == PLUNGE_IDLE && shiftRead(plungeTrigger)) {
     plungerState = PLUNGE_DRAINED;
+    score = 0;
     plungerTimeStamp = currentTime;
   } else if(plungerState == PLUNGE_DRAINED &&
             currentTime - plungerTimeStamp > drainSettleTime) {
@@ -100,6 +113,29 @@ void plunger(int drainSettleTime, int troughHighTime, int moveToLaneTime, int pl
   }
 }
 
+
+const int latchDisplay = 11;
+const int clockDisplay = 10;
+const int dataDisplay = 12;
+
+void setupDisplay() {
+  pinMode(latchDisplay, OUTPUT);
+  pinMode(dataDisplay, OUTPUT);
+  pinMode(clockDisplay, OUTPUT);
+}
+
+byte Tab[]={0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90,0xff};
+void updateDisplay(int score) {
+    digitalWrite(latchDisplay, LOW);
+    for(int i = 0; i < 8; i++) {
+      shiftOut(dataDisplay, clockDisplay, MSBFIRST, Tab[score % 10]);
+      score = score / 10;
+    }
+    digitalWrite(latchDisplay, HIGH);
+}
+
+byte shiftInput = 0;
+
 // the setup function runs once when you press reset or power the board
 void setup() {
   pinMode(PIN_LATCH_IN, OUTPUT);
@@ -118,6 +154,8 @@ void setup() {
 
   digitalWrite(PIN_DISABLE_OUT, LOW); // avoid firing all outputs when arduino is turned on
 
+  setupDisplay();
+
   Serial.begin(9600); 
 }
 
@@ -132,6 +170,8 @@ void loop() {
   slingShot(2, 400, 20);
   slingShot(3, 400, 20);
   plunger(1000, 30, 2000, 50);
+
+  updateDisplay(score);
 
   // check if the pushbutton is pressed.
   // if it is, the buttonState is HIGH:
@@ -173,8 +213,6 @@ void shiftCommit(){
   digitalWrite(PIN_LATCH_OUT, HIGH);
 }
 
-byte shiftInput = 0;
-
 bool shiftRead(int pin) {
   return bitRead(shiftInput, pin);
 }
@@ -199,4 +237,3 @@ void debug(){
     Serial.println(shiftInput,BIN);
   }
 }
-
